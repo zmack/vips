@@ -21,6 +21,12 @@ vips_jpegload_buffer_seq(void *buf, size_t len, VipsImage **out)
 };
 
 int
+vips_magickload_(const char *filename, VipsImage **out)
+{
+    return vips_magickload(filename, out, NULL);
+};
+
+int
 vips_jpegload_buffer_shrink(void *buf, size_t len, VipsImage **out, int shrink)
 {
     return vips_jpegload_buffer(buf, len, out, "shrink", shrink, NULL);
