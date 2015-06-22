@@ -87,6 +87,10 @@ func ResizeMagick(inputFilename string, o Options) ([]byte, error) {
 	C.free(unsafe.Pointer(filename))
 	defer C.vips_thread_shutdown()
 
+	if image == nil {
+		return nil, errors.New("unknown image format")
+	}
+
 	// get WxH
 	inWidth := int(image.Xsize)
 	inHeight := int(image.Ysize)
@@ -206,10 +210,19 @@ func ResizeMagick(inputFilename string, o Options) ([]byte, error) {
 		}
 	}
 
+	// Always flatten
+	if image.Bands > 3 {
+		if -1 != C.vips_flatten_0(image, &tmpImage) {
+			C.g_object_unref(C.gpointer(image))
+			image = tmpImage
+		}
+	}
+
 	// Always convert to sRGB colour space
-	C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB)
-	C.g_object_unref(C.gpointer(image))
-	image = tmpImage
+	if -1 != C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB) {
+		C.g_object_unref(C.gpointer(image))
+		image = tmpImage
+	}
 
 	// Finally save
 	length := C.size_t(0)
@@ -255,6 +268,10 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	// defaults
 	if o.Quality == 0 {
 		o.Quality = 100
+	}
+
+	if image == nil {
+		return nil, errors.New("unknown image format")
 	}
 
 	// get WxH
@@ -407,10 +424,19 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	} else {
 	}
 
+	// Always flatten
+	if image.Bands > 3 {
+		if -1 != C.vips_flatten_0(image, &tmpImage) {
+			C.g_object_unref(C.gpointer(image))
+			image = tmpImage
+		}
+	}
+
 	// Always convert to sRGB colour space
-	C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB)
-	C.g_object_unref(C.gpointer(image))
-	image = tmpImage
+	if -1 != C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB) {
+		C.g_object_unref(C.gpointer(image))
+		image = tmpImage
+	}
 
 	// Finally save
 	length := C.size_t(0)

@@ -51,6 +51,17 @@ vips_copy_0(VipsImage *in, VipsImage **out)
 }
 
 int
+vips_flatten_0(VipsImage *in, VipsImage **out)
+{
+    VipsArrayDouble *white = vips_array_double_newv(1.0, 255.0);
+
+    int flatten_value = vips_flatten(in, out, "background", white, NULL);
+    vips_area_unref((VipsArea *)white);
+
+    return flatten_value;
+}
+
+int
 vips_embed_extend(VipsImage *in, VipsImage **out, int left, int top, int width, int height, int extend)
 {
     return vips_embed(in, out, left, top, width, height, "extend", extend, NULL);
