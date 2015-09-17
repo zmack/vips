@@ -58,6 +58,7 @@ type Options struct {
 	Extend       Extend
 	Embed        bool
 	Interpolator Interpolator
+	BlurAmount   float32
 	Gravity      Gravity
 	Quality      int
 }
@@ -222,6 +223,14 @@ func ResizeMagick(inputFilename string, o Options) ([]byte, error) {
 	if -1 != C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB) {
 		C.g_object_unref(C.gpointer(image))
 		image = tmpImage
+	}
+
+	// Apply blur if needed
+	if o.BlurAmount > 0 {
+		if -1 != C.vips_gaussian_blur(image, &tmpImage, C.double(o.BlurAmount)) {
+			C.g_object_unref(C.gpointer(image))
+			image = tmpImage
+		}
 	}
 
 	// Finally save
@@ -436,6 +445,14 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	if -1 != C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB) {
 		C.g_object_unref(C.gpointer(image))
 		image = tmpImage
+	}
+
+	// Apply blur if needed
+	if o.BlurAmount > 0 {
+		if -1 != C.vips_gaussian_blur(image, &tmpImage, C.double(o.BlurAmount)) {
+			C.g_object_unref(C.gpointer(image))
+			image = tmpImage
+		}
 	}
 
 	// Finally save

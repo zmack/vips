@@ -1,11 +1,19 @@
 #include <stdlib.h>
 #include <vips/vips.h>
+#include <vips/basic.h>
 #include <vips/vips7compat.h>
 
 int
 vips_initialize()
 {
     return vips_init("govips");
+}
+
+int
+vips_gaussian_blur(VipsImage *in, VipsImage **out, double sigma)
+{
+  // return vips_gaussblur(in, out, sigma, "precision", VipsPrecision precision, "min_ampl", double min_amp, NULL);
+  return vips_gaussblur(in, out, sigma, NULL);
 }
 
 int
