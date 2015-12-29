@@ -433,8 +433,9 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	} else {
 	}
 
-	// Always flatten
-	if image.Bands > 3 {
+	// Only flatten if we're not running CMYK and we're rocking
+	// more than the standard 3 bands
+	if image.Type != C.VIPS_INTERPRETATION_CMYK && image.Bands > 3 {
 		if -1 != C.vips_flatten_0(image, &tmpImage) {
 			C.g_object_unref(C.gpointer(image))
 			image = tmpImage
