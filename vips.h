@@ -35,6 +35,19 @@ vips_magickload_(const char *filename, VipsImage **out)
 };
 
 int
+vips_magickload_buffer_(void *buf, size_t len, VipsImage **out)
+{
+    return vips_magickload_buffer(buf, len, out, NULL);
+};
+
+int
+vips_crop_(VipsImage *in, VipsImage **out, int left, int top, int width, int height)
+{
+  return vips_crop(in, out, left, top, width, height, NULL);
+}
+
+
+int
 vips_jpegload_buffer_shrink(void *buf, size_t len, VipsImage **out, int shrink)
 {
     return vips_jpegload_buffer(buf, len, out, "shrink", shrink, NULL);

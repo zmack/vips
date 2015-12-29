@@ -50,10 +50,18 @@ var interpolations = map[Interpolator]string{
 
 func (i Interpolator) String() string { return interpolations[i] }
 
+type CropRect struct {
+	Top    uint
+	Left   uint
+	Width  uint
+	Height uint
+}
+
 type Options struct {
 	Height       int
 	Width        int
 	Crop         bool
+	CropRect     *CropRect
 	Enlarge      bool
 	Extend       Extend
 	Embed        bool
@@ -62,6 +70,8 @@ type Options struct {
 	Gravity      Gravity
 	Quality      int
 }
+
+type VipsImagePtr *C.struct__VipsImage
 
 func init() {
 	runtime.LockOSThread()
@@ -80,16 +90,48 @@ func Debug() {
 	C.im__print_all()
 }
 
-func ResizeMagick(inputFilename string, o Options) ([]byte, error) {
-	var image, tmpImage *C.struct__VipsImage
-	filename := C.CString(inputFilename)
+func Crop(image VipsImagePtr, top uint, left uint, width uint, height uint) (VipsImagePtr, error) {
+	var outImage *C.struct__VipsImage
 
-	C.vips_magickload_(filename, &image)
-	C.free(unsafe.Pointer(filename))
+	C.vips_crop_(image, &outImage, C.int(top), C.int(left), C.int(width), C.int(height))
+
+	if outImage != nil {
+		return VipsImagePtr(outImage), nil
+	} else {
+		return nil, errors.New("Could not crop image")
+	}
+}
+
+func validCrop(image VipsImagePtr, crop *CropRect) bool {
+	imageWidth := uint(image.Xsize)
+	imageHeight := uint(image.Ysize)
+
+	return imageWidth >= crop.Left+crop.Width &&
+		imageHeight >= crop.Top+crop.Height
+}
+
+func ResizeMagick(buf []byte, o Options) ([]byte, error) {
+	var image, tmpImage *C.struct__VipsImage
+
+	C.vips_magickload_buffer_(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
+
+	// TODO: Consider not doing this on _every_ image
 	defer C.vips_thread_shutdown()
 
 	if image == nil {
 		return nil, errors.New("unknown image format")
+	}
+
+	if o.CropRect != nil && validCrop(image, o.CropRect) {
+		tmpImage, err := Crop(image, o.CropRect.Top, o.CropRect.Left, o.CropRect.Width, o.CropRect.Height)
+
+		if err != nil {
+			C.g_object_unref(C.gpointer(image))
+			return nil, err
+		}
+
+		C.g_object_unref(C.gpointer(image))
+		image = tmpImage
 	}
 
 	// get WxH
@@ -241,7 +283,7 @@ func ResizeMagick(inputFilename string, o Options) ([]byte, error) {
 	C.g_object_unref(C.gpointer(image))
 
 	// get back the buffer
-	buf := C.GoBytes(ptr, C.int(length))
+	buf = C.GoBytes(ptr, C.int(length))
 
 	// cleanup
 	C.g_free(C.gpointer(ptr))
@@ -272,6 +314,8 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	case PNG:
 		C.vips_pngload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
 	}
+
+	// TODO: Consider not doing this on _every_ image
 	defer C.vips_thread_shutdown()
 
 	// defaults
@@ -281,6 +325,18 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 
 	if image == nil {
 		return nil, errors.New("unknown image format")
+	}
+
+	if o.CropRect != nil && validCrop(image, o.CropRect) {
+		tmpImage, err := Crop(image, o.CropRect.Top, o.CropRect.Left, o.CropRect.Width, o.CropRect.Height)
+
+		if err != nil {
+			C.g_object_unref(C.gpointer(image))
+			return nil, err
+		}
+
+		C.g_object_unref(C.gpointer(image))
+		image = tmpImage
 	}
 
 	// get WxH
