@@ -489,6 +489,14 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	} else {
 	}
 
+	// Switch to sRGB before we do anything else because flattening
+	// with some other colorspece will not bode well in most other cases
+	// Always convert to sRGB colour space
+	if -1 != C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB) {
+		C.g_object_unref(C.gpointer(image))
+		image = tmpImage
+	}
+
 	// Only flatten if we're not running CMYK and we're rocking
 	// more than the standard 3 bands
 	if image.Type != C.VIPS_INTERPRETATION_CMYK && image.Bands > 3 {
@@ -496,12 +504,6 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 			C.g_object_unref(C.gpointer(image))
 			image = tmpImage
 		}
-	}
-
-	// Always convert to sRGB colour space
-	if -1 != C.vips_colourspace_0(image, &tmpImage, C.VIPS_INTERPRETATION_sRGB) {
-		C.g_object_unref(C.gpointer(image))
-		image = tmpImage
 	}
 
 	// Apply blur if needed
