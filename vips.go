@@ -123,7 +123,7 @@ func ResizeMagick(buf []byte, o Options) ([]byte, error) {
 	}
 
 	if o.CropRect != nil && validCrop(image, o.CropRect) {
-		tmpImage, err := Crop(image, o.CropRect.Top, o.CropRect.Left, o.CropRect.Width, o.CropRect.Height)
+		tmpImage, err := Crop(image, o.CropRect.Left, o.CropRect.Top, o.CropRect.Width, o.CropRect.Height)
 
 		if err != nil {
 			C.g_object_unref(C.gpointer(image))
@@ -328,7 +328,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	}
 
 	if o.CropRect != nil && validCrop(image, o.CropRect) {
-		tmpImage, err := Crop(image, o.CropRect.Top, o.CropRect.Left, o.CropRect.Width, o.CropRect.Height)
+		tmpImage, err := Crop(image, o.CropRect.Left, o.CropRect.Top, o.CropRect.Width, o.CropRect.Height)
 
 		if err != nil {
 			C.g_object_unref(C.gpointer(image))
