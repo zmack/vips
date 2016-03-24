@@ -103,6 +103,10 @@ func Crop(image VipsImagePtr, top uint, left uint, width uint, height uint) (Vip
 }
 
 func validCrop(image VipsImagePtr, crop *CropRect) bool {
+	if crop == nil {
+		return false
+	}
+
 	imageWidth := uint(image.Xsize)
 	imageHeight := uint(image.Ysize)
 
@@ -307,6 +311,10 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	// create an image instance
 	var image, tmpImage *C.struct__VipsImage
 
+	// Do shrink on load by default, however
+	// don't do it in the case of cropped images
+	useShrinkOnLoad := true
+
 	// feed it
 	switch typ {
 	case JPEG:
@@ -327,7 +335,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		return nil, errors.New("unknown image format")
 	}
 
-	if o.CropRect != nil && validCrop(image, o.CropRect) {
+	if validCrop(image, o.CropRect) {
 		tmpImage, err := Crop(image, o.CropRect.Left, o.CropRect.Top, o.CropRect.Width, o.CropRect.Height)
 
 		if err != nil {
@@ -336,6 +344,9 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		}
 
 		C.g_object_unref(C.gpointer(image))
+
+		// We've cropped the image, no longer safe to do shrinkOnLoad
+		useShrinkOnLoad = false
 		image = tmpImage
 	}
 
@@ -408,7 +419,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		}
 	}
 
-	if shrinkOnLoad > 1 {
+	if useShrinkOnLoad && shrinkOnLoad > 1 {
 		// Recalculate integral shrink and double residual
 		factor = math.Max(factor, 1.0)
 		shrink = int(math.Floor(factor))
