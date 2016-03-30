@@ -60,7 +60,7 @@ type CropRect struct {
 type Options struct {
 	Height       int
 	Width        int
-	Crop         bool
+	Crop         bool // Deprecated
 	CropRect     *CropRect
 	Enlarge      bool
 	Extend       Extend
@@ -114,6 +114,29 @@ func validCrop(image VipsImagePtr, crop *CropRect) bool {
 		imageHeight >= crop.Top+crop.Height
 }
 
+func validateCrop(image VipsImagePtr, crop *CropRect) *CropRect {
+	if crop == nil {
+		return nil
+	}
+
+	imageWidth := uint(image.Xsize)
+	imageHeight := uint(image.Ysize)
+
+	if crop.Top > imageHeight || crop.Left > imageWidth {
+		return nil
+	}
+
+	if crop.Left+crop.Width > imageWidth {
+		crop.Width = imageWidth - crop.Left
+	}
+
+	if crop.Top+crop.Height > imageHeight {
+		crop.Height = imageHeight - crop.Top
+	}
+
+	return crop
+}
+
 func ResizeMagick(buf []byte, o Options) ([]byte, error) {
 	var image, tmpImage *C.struct__VipsImage
 
@@ -126,8 +149,10 @@ func ResizeMagick(buf []byte, o Options) ([]byte, error) {
 		return nil, errors.New("unknown image format")
 	}
 
-	if o.CropRect != nil && validCrop(image, o.CropRect) {
-		tmpImage, err := Crop(image, o.CropRect.Left, o.CropRect.Top, o.CropRect.Width, o.CropRect.Height)
+	cropRect := validateCrop(image, o.CropRect)
+
+	if cropRect != nil {
+		tmpImage, err := Crop(image, cropRect.Left, cropRect.Top, cropRect.Width, cropRect.Height)
 
 		if err != nil {
 			C.g_object_unref(C.gpointer(image))
@@ -150,11 +175,7 @@ func ResizeMagick(buf []byte, o Options) ([]byte, error) {
 	case o.Width > 0 && o.Height > 0:
 		xf := float64(inWidth) / float64(o.Width)
 		yf := float64(inHeight) / float64(o.Height)
-		if o.Crop {
-			factor = math.Min(xf, yf)
-		} else {
-			factor = math.Max(xf, yf)
-		}
+		factor = math.Max(xf, yf)
 	// Fixed width, auto height
 	case o.Width > 0:
 		factor = float64(inWidth) / float64(o.Width)
@@ -205,11 +226,7 @@ func ResizeMagick(buf []byte, o Options) ([]byte, error) {
 
 		residualx := float64(o.Width) / float64(shrunkWidth)
 		residualy := float64(o.Height) / float64(shrunkHeight)
-		if o.Crop {
-			residual = math.Max(residualx, residualy)
-		} else {
-			residual = math.Min(residualx, residualy)
-		}
+		residual = math.Min(residualx, residualy)
 	}
 
 	// Use vips_affine with the remaining float part
@@ -226,34 +243,6 @@ func ResizeMagick(buf []byte, o Options) ([]byte, error) {
 		image = tmpImage
 		if err != 0 {
 			return nil, resizeError()
-		}
-	}
-
-	// Crop/embed
-	affinedWidth := int(image.Xsize)
-	affinedHeight := int(image.Ysize)
-
-	if affinedWidth != o.Width || affinedHeight != o.Height {
-		if o.Crop {
-			// Crop
-			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.Gravity)
-			o.Width = int(math.Min(float64(affinedWidth), float64(o.Width)))
-			o.Height = int(math.Min(float64(affinedHeight), float64(o.Height)))
-			err := C.vips_extract_area_0(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height))
-			C.g_object_unref(C.gpointer(image))
-			image = tmpImage
-			if err != 0 {
-				return nil, resizeError()
-			}
-		} else if o.Embed {
-			left := (o.Width - affinedWidth) / 2
-			top := (o.Height - affinedHeight) / 2
-			err := C.vips_embed_extend(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height), C.int(o.Extend))
-			C.g_object_unref(C.gpointer(image))
-			image = tmpImage
-			if err != 0 {
-				return nil, resizeError()
-			}
 		}
 	}
 
@@ -335,8 +324,10 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		return nil, errors.New("unknown image format")
 	}
 
-	if validCrop(image, o.CropRect) {
-		tmpImage, err := Crop(image, o.CropRect.Left, o.CropRect.Top, o.CropRect.Width, o.CropRect.Height)
+	cropRect := validateCrop(image, o.CropRect)
+
+	if cropRect != nil {
+		tmpImage, err := Crop(image, cropRect.Left, cropRect.Top, cropRect.Width, cropRect.Height)
 
 		if err != nil {
 			C.g_object_unref(C.gpointer(image))
@@ -448,11 +439,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 
 		residualx := float64(o.Width) / float64(shrunkWidth)
 		residualy := float64(o.Height) / float64(shrunkHeight)
-		if o.Crop {
-			residual = math.Max(residualx, residualy)
-		} else {
-			residual = math.Min(residualx, residualy)
-		}
+		residual = math.Min(residualx, residualy)
 	}
 
 	// Use vips_affine with the remaining float part
@@ -470,34 +457,6 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		if err != 0 {
 			return nil, resizeError()
 		}
-	}
-
-	// Crop/embed
-	affinedWidth := int(image.Xsize)
-	affinedHeight := int(image.Ysize)
-	if affinedWidth != o.Width || affinedHeight != o.Height {
-		if o.Crop {
-			// Crop
-			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.Gravity)
-			o.Width = int(math.Min(float64(affinedWidth), float64(o.Width)))
-			o.Height = int(math.Min(float64(affinedHeight), float64(o.Height)))
-			err := C.vips_extract_area_0(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height))
-			C.g_object_unref(C.gpointer(image))
-			image = tmpImage
-			if err != 0 {
-				return nil, resizeError()
-			}
-		} else if o.Embed {
-			left := (o.Width - affinedWidth) / 2
-			top := (o.Height - affinedHeight) / 2
-			err := C.vips_embed_extend(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height), C.int(o.Extend))
-			C.g_object_unref(C.gpointer(image))
-			image = tmpImage
-			if err != 0 {
-				return nil, resizeError()
-			}
-		}
-	} else {
 	}
 
 	// Switch to sRGB before we do anything else because flattening
