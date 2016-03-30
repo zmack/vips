@@ -9,8 +9,10 @@ import "C"
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"unsafe"
 )
 
@@ -98,7 +100,12 @@ func Crop(image VipsImagePtr, top uint, left uint, width uint, height uint) (Vip
 	if outImage != nil {
 		return VipsImagePtr(outImage), nil
 	} else {
-		return nil, errors.New("Could not crop image")
+		C.vips_error_freeze()
+		errStr := C.GoString(C.vips_error_buffer())
+		errStr = strings.TrimRight(errStr, " \n")
+		C.vips_error_clear()
+		C.vips_error_thaw()
+		return nil, errors.New(fmt.Sprintf("Could not crop image: %s", errStr))
 	}
 }
 
