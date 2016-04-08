@@ -76,16 +76,39 @@ type Options struct {
 type VipsImagePtr *C.struct__VipsImage
 
 func init() {
+	Initialize()
+}
+
+var initialized bool
+
+func Initialize() {
+	if initialized {
+		return
+	}
+
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	err := C.vips_initialize()
-	if err != 0 {
+
+	if err := C.vips_initialize(); err != 0 {
 		C.vips_shutdown()
 		panic("unable to start vips!")
 	}
+
 	C.vips_concurrency_set(1)
-	C.vips_cache_set_max_mem(0) // 100Mb
+	C.vips_cache_set_max_mem(0)
 	C.vips_cache_set_max(0)
+
+	initialized = true
+}
+
+func Shutdown() {
+	if !initialized {
+		return
+	}
+
+	C.vips_shutdown()
+
+	initialized = false
 }
 
 func Debug() {
@@ -319,8 +342,11 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		C.vips_pngload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
 	}
 
-	// TODO: Consider not doing this on _every_ image
-	defer C.vips_thread_shutdown()
+	// cleanup
+	defer func() {
+		C.vips_thread_shutdown()
+		C.vips_error_clear()
+	}()
 
 	// defaults
 	if o.Quality == 0 {
@@ -458,9 +484,12 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		// Perform affine transformation
 		err := C.vips_affine_interpolator(image, &tmpImage, C.double(residual), 0, 0, C.double(residual), interpolator)
 		C.g_object_unref(C.gpointer(image))
-		C.g_object_unref(C.gpointer(interpolator))
-		C.free(unsafe.Pointer(is))
+
 		image = tmpImage
+
+		C.free(unsafe.Pointer(is))
+		C.g_object_unref(C.gpointer(interpolator))
+
 		if err != 0 {
 			return nil, resizeError()
 		}
@@ -494,16 +523,12 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 	// Finally save
 	length := C.size_t(0)
 	var ptr unsafe.Pointer
-
 	C.vips_jpegsave_custom(image, &ptr, &length, 1, C.int(o.Quality), 0)
 	C.g_object_unref(C.gpointer(image))
 
 	// get back the buffer
 	buf = C.GoBytes(ptr, C.int(length))
-
-	// cleanup
 	C.g_free(C.gpointer(ptr))
-	C.vips_error_clear()
 
 	return buf, nil
 }
@@ -511,14 +536,13 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 func resizeError() error {
 	s := C.GoString(C.vips_error_buffer())
 	C.vips_error_clear()
-	C.vips_thread_shutdown()
 	return errors.New(s)
 }
 
 type Gravity int
 
 const (
-	CENTRE Gravity = iota
+	CENTRE Gravity = 1 << iota
 	NORTH
 	EAST
 	SOUTH
@@ -526,21 +550,24 @@ const (
 )
 
 func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight int, gravity Gravity) (int, int) {
-	left, top := 0, 0
-	switch gravity {
-	case NORTH:
-		left = (inWidth - outWidth + 1) / 2
-	case EAST:
-		left = inWidth - outWidth
-		top = (inHeight - outHeight + 1) / 2
-	case SOUTH:
-		left = (inWidth - outWidth + 1) / 2
-		top = inHeight - outHeight
-	case WEST:
-		top = (inHeight - outHeight + 1) / 2
-	default:
-		left = (inWidth - outWidth + 1) / 2
-		top = (inHeight - outHeight + 1) / 2
+	left := (inWidth - outWidth + 1) / 2
+	top := (inHeight - outHeight + 1) / 2
+
+	if (gravity & NORTH) != 0 {
+		top = 0
 	}
+
+	if (gravity & EAST) != 0 {
+		left = inWidth - outWidth
+	}
+
+	if (gravity & SOUTH) != 0 {
+		top = inHeight - outHeight
+	}
+
+	if (gravity & WEST) != 0 {
+		left = 0
+	}
+
 	return left, top
 }
