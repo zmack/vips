@@ -95,8 +95,8 @@ func Initialize() {
 	}
 
 	C.vips_concurrency_set(1)
-	C.vips_cache_set_max_mem(0)
-	C.vips_cache_set_max(0)
+	C.vips_cache_set_max_mem(100 * 1048576) // 100Mb
+	C.vips_cache_set_max(500)
 
 	initialized = true
 }
