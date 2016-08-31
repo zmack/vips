@@ -53,6 +53,38 @@ func BenchmarkSerialized(b *testing.B) {
 	b.StopTimer()
 }
 
+func BenchmarkCropAndResize(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		f, err := os.Open("testdata/3200x3200.jpg")
+		buf, err := ioutil.ReadAll(f)
+		f.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+		buf2, err := Resize(buf, Options{
+			CropRect: &CropRect{
+				Left: 0,
+				Top: 400,
+				Width: 3200,
+				Height: 2400,
+			},
+			Width: 400,
+			Height: 300,
+			Quality: 85,
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+		c, _, err := image.DecodeConfig(bytes.NewBuffer(buf2))
+		if err != nil {
+			b.Fatal(err)
+		}
+		if c.Width != 400 && c.Height != 300 {
+			b.Fatal("Invalid dimensions: %dx%d", c.Width, c.Height)
+		}
+	}
+}
+
 func TestResize(t *testing.T) {
 	var testCases = []struct {
 		origWidth      int
